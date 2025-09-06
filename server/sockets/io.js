@@ -11,7 +11,7 @@ module.exports = ioOrServer => {
         ? ioOrServer
         : require('socket.io')(ioOrServer, {
             cors: {
-                origin: "https://chess-frontend-237c.vercel.app/", // replace with your actual Vercel URL
+                origin: ["https://chess-frontend-237c.vercel.app", "http://localhost:3000", "http://127.0.0.1:3000"], 
                 methods: ["GET", "POST"],
                 credentials: true
             }
@@ -28,15 +28,15 @@ module.exports = ioOrServer => {
         });
 
         socket.on('move', function(data) {
-            if (!games[currentCode]) return;
+            if (!games[currentCode] || !data || !data.from || !data.to) return;
+            
             // Switch turn immediately when a move is received
-            if (data && data.from && data.to) {
-                if (games[currentCode].turn === 'w') {
-                    games[currentCode].turn = 'b';
-                } else {
-                    games[currentCode].turn = 'w';
-                }
+            if (games[currentCode].turn === 'w') {
+                games[currentCode].turn = 'b';
+            } else {
+                games[currentCode].turn = 'w';
             }
+            
             // Emit the updated timers and turn
             io.to(currentCode).emit('newMove', {
                 move: data,
@@ -44,6 +44,7 @@ module.exports = ioOrServer => {
                 blackTime: games[currentCode].blackTime,
                 turn: games[currentCode].turn
             });
+            
             // Immediately emit a timerUpdate so the UI updates right after the move
             io.to(currentCode).emit('timerUpdate', {
                 whiteTime: games[currentCode].whiteTime,
@@ -53,20 +54,26 @@ module.exports = ioOrServer => {
         });
 
         socket.on('joinGame', function(data) {
+            if (!data || !data.code) return;
+            
             currentCode = data.code;
             socket.join(currentCode);
+            
             if (!games[currentCode]) {
                 games[currentCode] = {
                     whiteTime: INITIAL_TIME,
                     blackTime: INITIAL_TIME,
                     turn: 'w',
                     running: true,
-                    chat: [] // single array for all messages
+                    chat: [], // single array for all messages
+                    playerCount: 1
                 };
+                
                 // Start timer interval for this game
                 timerIntervals[currentCode] = setInterval(() => {
                     const game = games[currentCode];
                     if (!game || !game.running) return;
+                    
                     // Only decrement the timer for the player whose turn it is
                     if (game.turn === 'w') {
                         if (game.whiteTime > 0) {
@@ -74,6 +81,7 @@ module.exports = ioOrServer => {
                             if (game.whiteTime <= 0) {
                                 game.whiteTime = 0;
                                 game.running = false;
+                                io.to(currentCode).emit('gameOver', { winner: 'black', reason: 'timeout' });
                             }
                         }
                     } else {
@@ -82,15 +90,18 @@ module.exports = ioOrServer => {
                             if (game.blackTime <= 0) {
                                 game.blackTime = 0;
                                 game.running = false;
+                                io.to(currentCode).emit('gameOver', { winner: 'white', reason: 'timeout' });
                             }
                         }
                     }
+                    
                     io.to(currentCode).emit('timerUpdate', {
                         whiteTime: game.whiteTime,
                         blackTime: game.blackTime,
                         turn: game.turn
                     });
                 }, 1000);
+                
                 // Emit startGame to the first player (white) immediately
                 socket.emit('startGame', {
                     whiteTime: games[currentCode].whiteTime,
@@ -99,6 +110,9 @@ module.exports = ioOrServer => {
                 });
                 return;
             }
+            
+            // Second player joins
+            games[currentCode].playerCount = 2;
             io.to(currentCode).emit('startGame', {
                 whiteTime: games[currentCode].whiteTime,
                 blackTime: games[currentCode].blackTime,
@@ -106,11 +120,10 @@ module.exports = ioOrServer => {
             });
         });
 
-        // Chat message handler
         socket.on('chatMessage', function(data) {
-            if (!games[currentCode]) return;
+            if (!games[currentCode] || !data || !data.msg || !data.color) return;
             const msgObj = {
-                msg: data.msg,
+                msg: data.msg.substring(0, 100), // Limit message length
                 color: data.color,
                 ts: Date.now()
             };
