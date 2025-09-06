@@ -11,7 +11,7 @@ module.exports = ioOrServer => {
         ? ioOrServer
         : require('socket.io')(ioOrServer, {
             cors: {
-                origin: ["https://chess-frontend-84k0a3dsx-atish0502s-projects.vercel.app", "https://chess-frontend-237c.vercel.app", "http://localhost:3000", "http://127.0.0.1:3000"], 
+                origin: ["https://jocular-selkie-2cc178.netlify.app", "https://chess-frontend-84k0a3dsx-atish0502s-projects.vercel.app", "https://chess-frontend-237c.vercel.app", "http://localhost:3000", "http://127.0.0.1:3000"], 
                 methods: ["GET", "POST"],
                 credentials: true
             }
