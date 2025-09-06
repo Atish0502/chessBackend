@@ -5,7 +5,17 @@ const INITIAL_TIME = 600; // 10 minutes in seconds
 // Store intervals for each game
 const timerIntervals = {};
 
-module.exports = io => {
+module.exports = ioOrServer => {
+    // If passed an http.Server, initialize socket.io with CORS options
+    const io = typeof ioOrServer.on === 'function' && typeof ioOrServer.emit === 'function' && typeof ioOrServer.listen !== 'function'
+        ? ioOrServer
+        : require('socket.io')(ioOrServer, {
+            cors: {
+                origin: "https://your-vercel-frontend-url", // replace with your actual Vercel URL
+                methods: ["GET", "POST"],
+                credentials: true
+            }
+        });
     io.on('connection', socket => {
         console.log('New socket connection');
 
