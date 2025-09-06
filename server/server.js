@@ -1,7 +1,8 @@
 const http = require('http'),
       path = require('path'),
       express = require('express'),
-      handlebars = require('express-handlebars');
+      handlebars = require('express-handlebars'),
+      cors = require('cors');
 
 const config = require('../config');
 
@@ -10,6 +11,12 @@ const myIo = require('./sockets/io'),
 
 const app = express(),
       server = http.Server(app);
+
+// Enable CORS for all routes
+app.use(cors({
+  origin: ["https://jocular-selkie-2cc178.netlify.app", "http://localhost:3000"],
+  credentials: true
+}));
 
 // Initialize Socket.IO with CORS in the io.js file
 const io = myIo(server);
