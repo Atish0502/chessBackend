@@ -14,13 +14,15 @@ const app = express(),
 // Initialize Socket.IO with CORS in the io.js file
 const io = myIo(server);
 
-server.listen(config.port, () => {
-  console.log(`Server listening on port ${config.port}`);
+const PORT = process.env.PORT || config.port;
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server listening on port ${PORT}`);
 });
 
 global.games = {};
 
-console.log(`Server listening on port ${config.port}`);
+console.log(`Server starting on port ${PORT}`);
 
 const Handlebars = handlebars.create({
   extname: '.html', 

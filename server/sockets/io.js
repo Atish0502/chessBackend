@@ -11,13 +11,19 @@ module.exports = ioOrServer => {
         ? ioOrServer
         : require('socket.io')(ioOrServer, {
             cors: {
-                origin: ["https://jocular-selkie-2cc178.netlify.app", "https://chess-frontend-84k0a3dsx-atish0502s-projects.vercel.app", "https://chess-frontend-237c.vercel.app", "http://localhost:3000", "http://127.0.0.1:3000"], 
+                origin: ["https://jocular-selkie-2cc178.netlify.app", "https://chess-frontend-84k0a3dsx-atish0502s-projects.vercel.app", "https://chess-frontend-237c.vercel.app", "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:1000"], 
                 methods: ["GET", "POST"],
-                credentials: true
-            }
+                credentials: true,
+                allowedHeaders: ["Content-Type"]
+            },
+            allowEIO3: true,
+            transports: ['websocket', 'polling']
         });
+    
+    console.log('Socket.IO server initialized');
+    
     io.on('connection', socket => {
-        console.log('New socket connection');
+        console.log('New socket connection:', socket.id);
 
         let currentCode = null;
         let lastTurn = 'w';
