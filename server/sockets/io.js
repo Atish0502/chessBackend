@@ -11,7 +11,7 @@ module.exports = ioOrServer => {
         ? ioOrServer
         : require('socket.io')(ioOrServer, {
             cors: {
-                origin: "https://your-vercel-frontend-url", // replace with your actual Vercel URL
+                origin: "https://chess-frontend-237c.vercel.app/", // replace with your actual Vercel URL
                 methods: ["GET", "POST"],
                 credentials: true
             }
