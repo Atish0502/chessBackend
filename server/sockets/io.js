@@ -11,7 +11,7 @@ module.exports = ioOrServer => {
         ? ioOrServer
         : require('socket.io')(ioOrServer, {
             cors: {
-                origin: "https://your-vercel-frontend-url", // replace with your actual Vercel URL
+                origin: "https://chess-frontend-237c.vercel.app/", // replace with your actual Vercel URL
                 methods: ["GET", "POST"],
                 credentials: true
             }
@@ -91,6 +91,12 @@ module.exports = ioOrServer => {
                         turn: game.turn
                     });
                 }, 1000);
+                // Emit startGame to the first player (white) immediately
+                socket.emit('startGame', {
+                    whiteTime: games[currentCode].whiteTime,
+                    blackTime: games[currentCode].blackTime,
+                    chat: games[currentCode].chat
+                });
                 return;
             }
             io.to(currentCode).emit('startGame', {
