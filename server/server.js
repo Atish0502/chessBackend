@@ -1,8 +1,7 @@
 const http = require('http'),
       path = require('path'),
       express = require('express'),
-      handlebars = require('express-handlebars'),
-      socket = require('socket.io');
+      handlebars = require('express-handlebars');
 
 const config = require('../config');
 
@@ -10,14 +9,16 @@ const myIo = require('./sockets/io'),
       routes = require('./routes/routes');
 
 const app = express(),
-      server = http.Server(app),
-      io = socket(server);
+      server = http.Server(app);
 
-server.listen(config.port);
+// Initialize Socket.IO with CORS in the io.js file
+const io = myIo(server);
 
-games = {};
+server.listen(config.port, () => {
+  console.log(`Server listening on port ${config.port}`);
+});
 
-myIo(io);
+global.games = {};
 
 console.log(`Server listening on port ${config.port}`);
 
