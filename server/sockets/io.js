@@ -112,12 +112,14 @@ module.exports = ioOrServer => {
             }
             
             // Second player joins
+            console.log('Second player joining game:', currentCode);
             games[currentCode].playerCount = 2;
             io.to(currentCode).emit('startGame', {
                 whiteTime: games[currentCode].whiteTime,
                 blackTime: games[currentCode].blackTime,
                 chat: games[currentCode].chat
             });
+            console.log('Emitted startGame to room:', currentCode);
         });
 
         socket.on('chatMessage', function(data) {
