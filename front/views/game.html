@@ -1,0 +1,130 @@
+<html>
+    <head>
+        {{> head}}
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+        html, body {
+            width: 100%;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #f5f5dc;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .game-flex {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            width: 100vw;
+            max-width: 100vw;
+        }
+        .timers-col {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 60vw;
+            max-height: 900px;
+            margin-right: 2vw;
+        }
+        .timer-box {
+            text-align: center;
+            margin: 2vw 0;
+        }
+        #myBoard {
+            width: 80vw !important;
+            max-width: 900px;
+            min-width: 240px;
+        }
+        #chat-container {
+            width: 25vw;
+            min-width: 180px;
+            max-width: 300px;
+            margin-left: 2vw;
+        }
+        #chat-messages {
+            height: 30vw;
+            min-height: 120px;
+            max-height: 400px;
+        }
+        @media (max-width: 900px) {
+            .game-flex {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .timers-col {
+                flex-direction: row;
+                height: auto;
+                margin-right: 0;
+                margin-bottom: 2vw;
+                justify-content: center;
+            }
+            .timer-box {
+                margin: 0 2vw;
+            }
+            #chat-container {
+                width: 90vw;
+                margin-left: 0;
+                margin-top: 2vw;
+            }
+            #myBoard {
+                width: 90vw !important;
+            }
+        }
+        @media (max-width: 600px) {
+            #myBoard {
+                width: 98vw !important;
+                min-width: 0;
+            }
+            #chat-container {
+                width: 98vw;
+                min-width: 0;
+            }
+            .timers-col {
+                flex-direction: row;
+                margin-bottom: 2vw;
+            }
+        }
+        </style>
+    </head>
+    <body>
+
+        <div class="game-flex">
+            <div class="timers-col">
+                <div class="timer-box">
+                    <div style="font-weight:bold;">Black Timer</div>
+                    <div id="black-timer" style="font-size:2em; color:#fff; background:#8d5524; border-radius:8px; padding:8px 24px; box-shadow:0 0 10px #8d5524,0 0 4px #a47551;">10:00</div>
+                </div>
+                <div class="timer-box">
+                    <div style="font-weight:bold;">White Timer</div>
+                    <div id="white-timer" style="font-size:2em; color:#333; background:#ffe082; border-radius:8px; padding:8px 24px; box-shadow:0 0 10px #ffe082,0 0 4px #fff8e1;">10:00</div>
+                </div>
+            </div>
+            <div>
+                <div id="myBoard"></div>
+                <label>Status:</label>
+                <div id="status"></div>
+                <label>PGN:</label>
+                <div id="pgn"></div>
+            </div>
+            <div id="chat-container">
+                <div id="chat-messages" style="flex: 1; border: 1px solid #ccc; border-radius: 8px; padding: 10px; background: #fafafa; margin-bottom: 10px;"></div>
+                <input id="chat-input" type="text" maxlength="100" placeholder="Type a message..." style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                <button id="chat-send" style="margin-top: 5px; padding: 8px; border-radius: 4px; background: #8d5524; color: #fff; border: none;">Send</button>
+            </div>
+        </div>
+
+        <script>
+            let playerColor = '{{color}}';
+            console.log('Playing as ' + playerColor);
+        </script>
+        <script src="/public/js/index.js"></script>
+
+    </body>
+</html>

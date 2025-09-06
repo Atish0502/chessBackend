@@ -1,0 +1,82 @@
+<html>
+<head>
+    {{> head}}
+    <script src="/public/js/chess-0.10.3.min.js"></script>
+    <script src="/public/js/chessboard-1.0.0.min.js"></script>
+    <script src="/public/js/jquery-3.7.0.min.js"></script>
+    <script src="/public/js/ai.js"></script>
+    <link rel="stylesheet" href="/public/css/chessboard-1.0.0.min.css">
+    <style>
+        body { background: linear-gradient(135deg,#ffe082 0%,#fff8e1 100%); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #aiBoard { width: 600px; margin: 32px auto; }
+        #ai-status { font-size: 1.5em; color: #8d5524; margin: 16px 0; text-align: center; }
+        #ai-controls { margin: 16px 0; text-align: center; }
+        #ai-controls button { font-size: 1.1em; padding: 8px 24px; border-radius: 8px; border: none; background: #ffe082; color: #8d5524; font-weight: bold; margin: 0 8px; box-shadow: 0 0 8px #ffe082; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="ai-status"></div>
+    <div id="aiBoard"></div>
+    <div id="ai-controls">
+        <button id="ai-restart">Restart</button>
+        <button id="ai-flip">Flip Board</button>
+        <span id="ai-difficulty" style="margin-left:24px; font-size:1.1em; color:#a47551;"></span>
+    </div>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const difficulty = urlParams.get('difficulty') || 'easy';
+        $("#ai-difficulty").text('Difficulty: ' + difficulty.charAt(0).toUpperCase() + difficulty.slice(1));
+        var game = new Chess();
+        var board = Chessboard('aiBoard', {
+            draggable: true,
+            position: 'start',
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            onSnapEnd: onSnapEnd,
+            pieceTheme: '/public/img/chesspieces/wikipedia/{piece}.png'
+        });
+        var ai = new ChessAI(difficulty);
+        var humanColor = 'w';
+        function onDragStart (source, piece, position, orientation) {
+            if (game.game_over()) return false;
+            if ((game.turn() !== humanColor) || (piece[0] !== humanColor)) return false;
+        }
+        function onDrop (source, target) {
+            var move = game.move({ from: source, to: target, promotion: 'q' });
+            if (move === null) return 'snapback';
+            updateStatus();
+            setTimeout(makeAIMove, 300);
+        }
+        function onSnapEnd () { board.position(game.fen()); }
+        function makeAIMove() {
+            if (game.game_over()) return;
+            var move = ai.getBestMove(game);
+            if (move) {
+                game.move(move);
+                board.position(game.fen());
+                updateStatus();
+            }
+        }
+        function updateStatus() {
+            var status = '';
+            if (game.in_checkmate()) {
+                status = 'Game over, ' + (game.turn() === 'w' ? 'Black' : 'White') + ' wins by checkmate!';
+            } else if (game.in_draw()) {
+                status = 'Game drawn!';
+            } else {
+                status = (game.turn() === humanColor ? 'Your move' : 'AI thinking...');
+            }
+            $("#ai-status").text(status);
+        }
+        $('#ai-restart').on('click', function() {
+            game.reset();
+            board.position('start');
+            updateStatus();
+        });
+        $('#ai-flip').on('click', function() {
+            board.flip();
+        });
+        updateStatus();
+    </script>
+</body>
+</html>
