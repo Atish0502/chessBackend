@@ -32,31 +32,35 @@ const PORT = process.env.PORT || config.port;
 server.listen(PORT, () => {
   console.log(`🚀 Server listening on port ${PORT}`);
   
-  // ULTRA MINIMAL SOCKET HANDLER
+  // SAFE SOCKET HANDLER - NO ONAVY
   io.on('connection', (socket) => {
     console.log(`🔌 NEW CONNECTION: ${socket.id}`);
     
-    // Echo back EVERYTHING immediately
-    socket.onAny((eventName, ...args) => {
-      console.log(`📨 EVENT: ${eventName}`, args);
+    // Just handle specific events safely
+    socket.on('joinGame', (data) => {
+      console.log(`📨 joinGame EVENT:`, data);
       
-      // Echo it right back
-      socket.emit('echo', {
-        originalEvent: eventName,
-        originalData: args,
-        timestamp: new Date().toISOString(),
-        test: 'ECHO_SUCCESS'
-      });
-      
-      console.log(`📤 ECHOED: ${eventName}`);
+      try {
+        socket.emit('echo', {
+          originalEvent: 'joinGame',
+          originalData: data,
+          timestamp: new Date().toISOString(),
+          test: 'SAFE_SUCCESS'
+        });
+        console.log(`📤 ECHOED joinGame`);
+      } catch (error) {
+        console.log(`❌ ERROR:`, error);
+      }
     });
     
     socket.on('disconnect', () => {
       console.log(`❌ DISCONNECT: ${socket.id}`);
     });
+    
+    console.log(`✅ Handler ready for ${socket.id}`);
   });
   
-  console.log(`✅ Socket handler ready`);
+  console.log(`✅ Socket server ready`);
 });
 
 // Initialize professional game state management
