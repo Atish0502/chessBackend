@@ -31,8 +31,8 @@ server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
 
-// Make games global so routes can access it
-global.games = {};
+// Initialize professional game state management
+global.games = new Map();
 
 // Call the socket handler directly
 myIo(io);
