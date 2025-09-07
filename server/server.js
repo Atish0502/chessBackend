@@ -29,13 +29,15 @@ const PORT = process.env.PORT || config.port;
 
 server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
+  
+  // Initialize socket handler AFTER server starts
+  console.log('Initializing socket handler...');
+  myIo(io);
+  console.log('Socket handler initialized');
 });
 
 // Initialize professional game state management
 global.games = new Map();
-
-// Call the socket handler directly
-myIo(io);
 
 console.log(`Server starting on port ${PORT}`);
 
