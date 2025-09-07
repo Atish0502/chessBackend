@@ -83,77 +83,85 @@ module.exports = io => {
             currentCode = data.code;
             socket.join(currentCode);
             
+            console.log(`Player ${socket.id} trying to join game ${currentCode}`);
+            
             if (!global.games[currentCode]) {
                 // First player creates the game and gets white
                 global.games[currentCode] = {
                     whiteTime: INITIAL_TIME,
                     blackTime: INITIAL_TIME,
                     turn: 'w',
-                    running: false, // Don't start until 2 players
+                    running: false,
                     chat: [],
                     players: 1,
-                    whitePlayer: socket.id, // Track who is white
+                    whitePlayer: socket.id,
                     blackPlayer: null,
-                    chessInstance: new Chess() // Server-side game state
+                    chessInstance: new Chess()
                 };
                 playerColor = 'white';
-                console.log(`Game ${currentCode} created, player ${socket.id} assigned white`);
+                console.log(`✅ Game ${currentCode} created, player ${socket.id} is WHITE, waiting for BLACK player`);
                 socket.emit('colorAssigned', { color: 'white', waiting: true });
                 return;
             }
             
-            // Second player joins and gets black
-            if (global.games[currentCode].players < 2) {
-                global.games[currentCode].players = 2;
-                global.games[currentCode].blackPlayer = socket.id;
-                global.games[currentCode].running = true;
+            // Game exists, check if we can join as second player
+            const game = global.games[currentCode];
+            
+            if (game.players === 1 && !game.blackPlayer) {
+                // Second player joins as black
+                game.players = 2;
+                game.blackPlayer = socket.id;
+                game.running = true;
                 playerColor = 'black';
                 
-                console.log(`Game ${currentCode} started with 2 players`);
+                console.log(`✅ Game ${currentCode} STARTED! White: ${game.whitePlayer}, Black: ${game.blackPlayer}`);
                 
-                // Notify both players of color assignments and game start
-                io.to(global.games[currentCode].whitePlayer).emit('colorAssigned', { color: 'white', waiting: false });
-                io.to(global.games[currentCode].blackPlayer).emit('colorAssigned', { color: 'black', waiting: false });
+                // Notify both players
+                io.to(game.whitePlayer).emit('colorAssigned', { color: 'white', waiting: false });
+                io.to(game.blackPlayer).emit('colorAssigned', { color: 'black', waiting: false });
                 
                 // Start the game for both players
                 io.to(currentCode).emit('startGame', {
-                    whiteTime: global.games[currentCode].whiteTime,
-                    blackTime: global.games[currentCode].blackTime,
-                    chat: global.games[currentCode].chat,
-                    fen: global.games[currentCode].chessInstance.fen()
+                    whiteTime: game.whiteTime,
+                    blackTime: game.blackTime,
+                    chat: game.chat,
+                    fen: game.chessInstance.fen()
                 });
                 
-                // Start timer interval for this game
+                // Start timer interval
                 timerIntervals[currentCode] = setInterval(() => {
-                    const game = global.games[currentCode];
-                    if (!game || !game.running) return;
+                    if (!global.games[currentCode] || !global.games[currentCode].running) return;
                     
-                    // Only decrement the timer for the player whose turn it is
-                    if (game.turn === 'w') {
-                        if (game.whiteTime > 0) {
-                            game.whiteTime--;
-                            if (game.whiteTime <= 0) {
-                                game.whiteTime = 0;
-                                game.running = false;
+                    const g = global.games[currentCode];
+                    if (g.turn === 'w') {
+                        if (g.whiteTime > 0) {
+                            g.whiteTime--;
+                            if (g.whiteTime <= 0) {
+                                g.whiteTime = 0;
+                                g.running = false;
                                 io.to(currentCode).emit('gameOver', { winner: 'black', reason: 'timeout' });
                             }
                         }
                     } else {
-                        if (game.blackTime > 0) {
-                            game.blackTime--;
-                            if (game.blackTime <= 0) {
-                                game.blackTime = 0;
-                                game.running = false;
+                        if (g.blackTime > 0) {
+                            g.blackTime--;
+                            if (g.blackTime <= 0) {
+                                g.blackTime = 0;
+                                g.running = false;
                                 io.to(currentCode).emit('gameOver', { winner: 'white', reason: 'timeout' });
                             }
                         }
                     }
                     io.to(currentCode).emit('timerUpdate', {
-                        whiteTime: game.whiteTime,
-                        blackTime: game.blackTime,
-                        turn: game.turn
+                        whiteTime: g.whiteTime,
+                        blackTime: g.blackTime,
+                        turn: g.turn
                     });
                 }, 1000);
+            } else {
+                // Game is full or player already in game
+                console.log(`❌ Game ${currentCode} is full or player already connected`);
+                socket.emit('gameFull', { message: 'Game is full' });
             }
         });
 
