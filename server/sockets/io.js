@@ -1,207 +1,248 @@
-// Add timer state to each game
-// Add chat state to each game (in-memory, max 7 messages per player)
+// Professional chess.com/lichess-inspired implementation
 const INITIAL_TIME = 600; // 10 minutes in seconds
-const Chess = require('chess.js'); // Add server-side chess validation
+const Chess = require('chess.js'); // Server-side validation
 
-// Store intervals for each game
-const timerIntervals = {};
+// Store game intervals and state
+const gameTimers = new Map();
+const gameStates = new Map();
 
 module.exports = io => {
     io.on('connection', socket => {
-        console.log('New socket connection');
-
-        let currentCode = null;
-        let lastTurn = 'w';
+        console.log(`🔌 Socket connected: ${socket.id}`);
+        
+        let currentGameId = null;
         let playerColor = null;
 
-        socket.on('setColor', function(color) {
-            playerColor = color;
-        });
-
-        socket.on('move', function(data) {
-            if (!global.games[currentCode]) return;
-            if (!global.games[currentCode].running) return; // Only allow moves when game is running
-            
-            const game = global.games[currentCode];
-            
-            // Server-side move validation using chess.js
-            if (!game.chessInstance) {
-                game.chessInstance = new Chess(); // Initialize chess instance if not exists
-            }
-            
-            console.log(`Move received in game ${currentCode}:`, data);
-            
-            // Validate move server-side
-            const move = game.chessInstance.move({
-                from: data.from,
-                to: data.to,
-                promotion: data.promotion || 'q'
-            });
-            
-            if (!move) {
-                console.log('Invalid move rejected:', data);
-                socket.emit('invalidMove', { move: data, reason: 'Illegal move' });
-                return;
-            }
-            
-            // Move is valid, update turn
-            if (game.turn === 'w') {
-                game.turn = 'b';
-            } else {
-                game.turn = 'w';
-            }
-            
-            // Check for game end conditions
-            if (game.chessInstance.in_checkmate()) {
-                game.running = false;
-                const winner = game.chessInstance.turn() === 'w' ? 'black' : 'white';
-                io.to(currentCode).emit('gameOver', { winner, reason: 'checkmate' });
-            } else if (game.chessInstance.in_draw()) {
-                game.running = false;
-                io.to(currentCode).emit('gameOver', { winner: 'draw', reason: 'draw' });
-            }
-            
-            // Emit the validated move
-            io.to(currentCode).emit('newMove', {
-                move: data,
-                whiteTime: game.whiteTime,
-                blackTime: game.blackTime,
-                turn: game.turn,
-                fen: game.chessInstance.fen(),
-                pgn: game.chessInstance.pgn()
-            });
-            
-            // Immediately emit a timerUpdate so the UI updates right after the move
-            io.to(currentCode).emit('timerUpdate', {
-                whiteTime: game.whiteTime,
-                blackTime: game.blackTime,
-                turn: game.turn
-            });
-        });
-
+        // Join game handler - CRITICAL LOGIC
         socket.on('joinGame', function(data) {
-            currentCode = data.code;
-            socket.join(currentCode);
+            const gameId = data.code;
+            currentGameId = gameId;
             
-            console.log(`Player ${socket.id} trying to join game ${currentCode}`);
+            console.log(`🎮 Player ${socket.id} joining game ${gameId}`);
+            socket.join(gameId);
             
-            if (!global.games[currentCode]) {
-                // First player creates the game and gets white
-                global.games[currentCode] = {
+            // Initialize or join existing game
+            if (!gameStates.has(gameId)) {
+                // Create new game - first player is WHITE
+                const gameState = {
+                    id: gameId,
+                    whitePlayer: socket.id,
+                    blackPlayer: null,
+                    playerCount: 1,
                     whiteTime: INITIAL_TIME,
                     blackTime: INITIAL_TIME,
                     turn: 'w',
-                    running: false,
+                    isRunning: false,
+                    chess: new Chess(),
                     chat: [],
-                    players: 1,
-                    whitePlayer: socket.id,
-                    blackPlayer: null,
-                    chessInstance: new Chess()
+                    lastMoveTime: Date.now()
                 };
+                
+                gameStates.set(gameId, gameState);
                 playerColor = 'white';
-                console.log(`✅ Game ${currentCode} created, player ${socket.id} is WHITE, waiting for BLACK player`);
-                socket.emit('colorAssigned', { color: 'white', waiting: true });
+                
+                console.log(`✅ Game ${gameId} created, ${socket.id} is WHITE`);
+                socket.emit('gameJoined', { 
+                    color: 'white', 
+                    waiting: true,
+                    gameState: {
+                        fen: gameState.chess.fen(),
+                        whiteTime: gameState.whiteTime,
+                        blackTime: gameState.blackTime,
+                        turn: gameState.turn
+                    }
+                });
+                
+            } else {
+                const gameState = gameStates.get(gameId);
+                
+                if (gameState.playerCount === 1 && !gameState.blackPlayer) {
+                    // Second player joins as BLACK
+                    gameState.blackPlayer = socket.id;
+                    gameState.playerCount = 2;
+                    gameState.isRunning = true;
+                    gameState.lastMoveTime = Date.now();
+                    playerColor = 'black';
+                    
+                    console.log(`🚀 Game ${gameId} STARTED! White: ${gameState.whitePlayer}, Black: ${gameState.blackPlayer}`);
+                    
+                    // Notify both players game has started
+                    io.to(gameState.whitePlayer).emit('gameStarted', { 
+                        color: 'white',
+                        gameState: {
+                            fen: gameState.chess.fen(),
+                            whiteTime: gameState.whiteTime,
+                            blackTime: gameState.blackTime,
+                            turn: gameState.turn,
+                            chat: gameState.chat
+                        }
+                    });
+                    
+                    io.to(gameState.blackPlayer).emit('gameStarted', { 
+                        color: 'black',
+                        gameState: {
+                            fen: gameState.chess.fen(),
+                            whiteTime: gameState.whiteTime,
+                            blackTime: gameState.blackTime,
+                            turn: gameState.turn,
+                            chat: gameState.chat
+                        }
+                    });
+                    
+                    // Start the game timer
+                    startGameTimer(gameId);
+                    
+                } else {
+                    // Game is full or player reconnecting
+                    console.log(`❌ Game ${gameId} is full or already joined`);
+                    socket.emit('gameError', { message: 'Game is full' });
+                }
+            }
+        });
+
+        // Move handler - SERVER VALIDATES ALL MOVES
+        socket.on('move', function(moveData) {
+            if (!currentGameId || !gameStates.has(currentGameId)) return;
+            
+            const gameState = gameStates.get(currentGameId);
+            if (!gameState.isRunning) return;
+            
+            console.log(`♟️ Move attempt in ${currentGameId}:`, moveData);
+            
+            // Validate move server-side
+            const move = gameState.chess.move({
+                from: moveData.from,
+                to: moveData.to,
+                promotion: moveData.promotion || 'q'
+            });
+            
+            if (!move) {
+                console.log(`❌ Invalid move rejected:`, moveData);
+                socket.emit('moveRejected', { move: moveData, reason: 'Illegal move' });
                 return;
             }
             
-            // Game exists, check if we can join as second player
-            const game = global.games[currentCode];
+            // Move is valid - update game state
+            gameState.turn = gameState.chess.turn();
+            gameState.lastMoveTime = Date.now();
             
-            if (game.players === 1 && !game.blackPlayer) {
-                // Second player joins as black
-                game.players = 2;
-                game.blackPlayer = socket.id;
-                game.running = true;
-                playerColor = 'black';
+            console.log(`✅ Move accepted: ${move.san}`);
+            
+            // Check for game end
+            if (gameState.chess.isGameOver()) {
+                gameState.isRunning = false;
+                stopGameTimer(currentGameId);
                 
-                console.log(`✅ Game ${currentCode} STARTED! White: ${game.whitePlayer}, Black: ${game.blackPlayer}`);
+                let result = { winner: null, reason: 'unknown' };
+                if (gameState.chess.isCheckmate()) {
+                    result.winner = gameState.chess.turn() === 'w' ? 'black' : 'white';
+                    result.reason = 'checkmate';
+                } else if (gameState.chess.isDraw()) {
+                    result.winner = 'draw';
+                    result.reason = 'draw';
+                }
                 
-                // Notify both players
-                io.to(game.whitePlayer).emit('colorAssigned', { color: 'white', waiting: false });
-                io.to(game.blackPlayer).emit('colorAssigned', { color: 'black', waiting: false });
-                
-                // Start the game for both players
-                io.to(currentCode).emit('startGame', {
-                    whiteTime: game.whiteTime,
-                    blackTime: game.blackTime,
-                    chat: game.chat,
-                    fen: game.chessInstance.fen()
-                });
-                
-                // Start timer interval
-                timerIntervals[currentCode] = setInterval(() => {
-                    if (!global.games[currentCode] || !global.games[currentCode].running) return;
-                    
-                    const g = global.games[currentCode];
-                    if (g.turn === 'w') {
-                        if (g.whiteTime > 0) {
-                            g.whiteTime--;
-                            if (g.whiteTime <= 0) {
-                                g.whiteTime = 0;
-                                g.running = false;
-                                io.to(currentCode).emit('gameOver', { winner: 'black', reason: 'timeout' });
-                            }
-                        }
-                    } else {
-                        if (g.blackTime > 0) {
-                            g.blackTime--;
-                            if (g.blackTime <= 0) {
-                                g.blackTime = 0;
-                                g.running = false;
-                                io.to(currentCode).emit('gameOver', { winner: 'white', reason: 'timeout' });
-                            }
-                        }
-                    }
-                    io.to(currentCode).emit('timerUpdate', {
-                        whiteTime: g.whiteTime,
-                        blackTime: g.blackTime,
-                        turn: g.turn
-                    });
-                }, 1000);
-            } else {
-                // Game is full or player already in game
-                console.log(`❌ Game ${currentCode} is full or player already connected`);
-                socket.emit('gameFull', { message: 'Game is full' });
+                io.to(currentGameId).emit('gameOver', result);
             }
-        });
-
-        // Chat message handler
-        socket.on('chatMessage', function(data) {
-            if (!global.games[currentCode]) return;
-            const msgObj = {
-                msg: data.msg,
-                color: data.color,
-                ts: Date.now()
-            };
-            global.games[currentCode].chat.push(msgObj);
-            // Keep only the last 28 messages (14 per player max, but in order)
-            if (global.games[currentCode].chat.length > 28) global.games[currentCode].chat.shift();
-            io.to(currentCode).emit('chatUpdate', {
-                chat: global.games[currentCode].chat
+            
+            // Broadcast move to all players in game
+            io.to(currentGameId).emit('moveMade', {
+                move: moveData,
+                san: move.san,
+                fen: gameState.chess.fen(),
+                pgn: gameState.chess.pgn(),
+                whiteTime: gameState.whiteTime,
+                blackTime: gameState.blackTime,
+                turn: gameState.turn
             });
         });
 
+        // Chat handler
+        socket.on('chatMessage', function(data) {
+            if (!currentGameId || !gameStates.has(currentGameId)) return;
+            
+            const gameState = gameStates.get(currentGameId);
+            const message = {
+                color: playerColor,
+                text: data.msg,
+                timestamp: Date.now()
+            };
+            
+            gameState.chat.push(message);
+            if (gameState.chat.length > 20) gameState.chat.shift(); // Limit chat history
+            
+            io.to(currentGameId).emit('chatMessage', message);
+        });
+
+        // Disconnect handler
         socket.on('disconnect', function() {
-            console.log('socket disconnected');
-            if (currentCode && global.games[currentCode]) {
-                // Decrease player count
-                global.games[currentCode].players--;
+            console.log(`🔌 Socket disconnected: ${socket.id}`);
+            
+            if (currentGameId && gameStates.has(currentGameId)) {
+                const gameState = gameStates.get(currentGameId);
                 
-                if (global.games[currentCode].players <= 0) {
-                    // No players left, delete game
-                    console.log(`Game ${currentCode} deleted - no players left`);
-                    delete global.games[currentCode];
-                    if (timerIntervals[currentCode]) {
-                        clearInterval(timerIntervals[currentCode]);
-                        delete timerIntervals[currentCode];
-                    }
-                } else {
-                    // Still has players, but notify of disconnect
-                    console.log(`Player left game ${currentCode}, ${global.games[currentCode].players} players remaining`);
-                    io.to(currentCode).emit('gameOverDisconnect');
-                    global.games[currentCode].running = false;
+                if (gameState.whitePlayer === socket.id || gameState.blackPlayer === socket.id) {
+                    // Player left - end the game
+                    gameState.isRunning = false;
+                    stopGameTimer(currentGameId);
+                    
+                    io.to(currentGameId).emit('playerDisconnected');
+                    gameStates.delete(currentGameId);
                 }
             }
         });
     });
+
+    // Timer management functions
+    function startGameTimer(gameId) {
+        if (gameTimers.has(gameId)) {
+            clearInterval(gameTimers.get(gameId));
+        }
+        
+        const interval = setInterval(() => {
+            const gameState = gameStates.get(gameId);
+            if (!gameState || !gameState.isRunning) {
+                stopGameTimer(gameId);
+                return;
+            }
+            
+            // Decrement time for current player
+            if (gameState.turn === 'w') {
+                gameState.whiteTime = Math.max(0, gameState.whiteTime - 1);
+                if (gameState.whiteTime === 0) {
+                    gameState.isRunning = false;
+                    io.to(gameId).emit('gameOver', { winner: 'black', reason: 'timeout' });
+                    stopGameTimer(gameId);
+                    return;
+                }
+            } else {
+                gameState.blackTime = Math.max(0, gameState.blackTime - 1);
+                if (gameState.blackTime === 0) {
+                    gameState.isRunning = false;
+                    io.to(gameId).emit('gameOver', { winner: 'white', reason: 'timeout' });
+                    stopGameTimer(gameId);
+                    return;
+                }
+            }
+            
+            // Broadcast timer update
+            io.to(gameId).emit('timerUpdate', {
+                whiteTime: gameState.whiteTime,
+                blackTime: gameState.blackTime,
+                turn: gameState.turn
+            });
+            
+        }, 1000);
+        
+        gameTimers.set(gameId, interval);
+        console.log(`⏰ Timer started for game ${gameId}`);
+    }
+    
+    function stopGameTimer(gameId) {
+        if (gameTimers.has(gameId)) {
+            clearInterval(gameTimers.get(gameId));
+            gameTimers.delete(gameId);
+            console.log(`⏰ Timer stopped for game ${gameId}`);
+        }
+    }
 };
