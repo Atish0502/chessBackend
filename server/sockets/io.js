@@ -19,6 +19,10 @@ module.exports = io => {
 
         socket.on('move', function(data) {
             if (!global.games[currentCode]) return;
+            if (!global.games[currentCode].running) return; // Only allow moves when game is running
+            
+            console.log(`Move received in game ${currentCode}:`, data);
+            
             // Switch turn immediately when a move is received
             if (data && data.from && data.to) {
                 if (global.games[currentCode].turn === 'w') {
@@ -45,18 +49,40 @@ module.exports = io => {
         socket.on('joinGame', function(data) {
             currentCode = data.code;
             socket.join(currentCode);
+            
             if (!global.games[currentCode]) {
+                // First player creates the game
                 global.games[currentCode] = {
                     whiteTime: INITIAL_TIME,
                     blackTime: INITIAL_TIME,
                     turn: 'w',
-                    running: true,
-                    chat: [] // single array for all messages
+                    running: false, // Don't start until 2 players
+                    chat: [],
+                    players: 1 // Track number of players
                 };
+                console.log(`Game ${currentCode} created, waiting for second player`);
+                return;
+            }
+            
+            // Second player joins
+            if (global.games[currentCode].players < 2) {
+                global.games[currentCode].players = 2;
+                global.games[currentCode].running = true;
+                
+                console.log(`Game ${currentCode} started with 2 players`);
+                
+                // Start the game for both players
+                io.to(currentCode).emit('startGame', {
+                    whiteTime: global.games[currentCode].whiteTime,
+                    blackTime: global.games[currentCode].blackTime,
+                    chat: global.games[currentCode].chat
+                });
+                
                 // Start timer interval for this game
                 timerIntervals[currentCode] = setInterval(() => {
                     const game = global.games[currentCode];
                     if (!game || !game.running) return;
+                    
                     // Only decrement the timer for the player whose turn it is
                     if (game.turn === 'w') {
                         if (game.whiteTime > 0) {
@@ -83,13 +109,7 @@ module.exports = io => {
                         turn: game.turn
                     });
                 }, 1000);
-                return;
             }
-            io.to(currentCode).emit('startGame', {
-                whiteTime: global.games[currentCode].whiteTime,
-                blackTime: global.games[currentCode].blackTime,
-                chat: global.games[currentCode].chat
-            });
         });
 
         // Chat message handler
@@ -110,12 +130,23 @@ module.exports = io => {
 
         socket.on('disconnect', function() {
             console.log('socket disconnected');
-            if (currentCode) {
-                io.to(currentCode).emit('gameOverDisconnect');
-                delete global.games[currentCode];
-                if (timerIntervals[currentCode]) {
-                    clearInterval(timerIntervals[currentCode]);
-                    delete timerIntervals[currentCode];
+            if (currentCode && global.games[currentCode]) {
+                // Decrease player count
+                global.games[currentCode].players--;
+                
+                if (global.games[currentCode].players <= 0) {
+                    // No players left, delete game
+                    console.log(`Game ${currentCode} deleted - no players left`);
+                    delete global.games[currentCode];
+                    if (timerIntervals[currentCode]) {
+                        clearInterval(timerIntervals[currentCode]);
+                        delete timerIntervals[currentCode];
+                    }
+                } else {
+                    // Still has players, but notify of disconnect
+                    console.log(`Player left game ${currentCode}, ${global.games[currentCode].players} players remaining`);
+                    io.to(currentCode).emit('gameOverDisconnect');
+                    global.games[currentCode].running = false;
                 }
             }
         });
