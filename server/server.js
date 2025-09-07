@@ -13,7 +13,7 @@ const app = express(),
       server = http.Server(app),
       io = socket(server, {
         cors: {
-          origin: ["https://jocular-selkie-2cc178.netlify.app", "http://localhost:3000"],
+          origin: ["https://jocular-selkie-2cc178.netlify.app", "https://netlify.app", "http://localhost:3000", "http://localhost:1000"],
           methods: ["GET", "POST"],
           credentials: true
         }
@@ -28,6 +28,7 @@ server.listen(PORT, () => {
 // Make games global so routes can access it
 global.games = {};
 
+// Call the socket handler directly
 myIo(io);
 
 console.log(`Server starting on port ${PORT}`);
