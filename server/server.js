@@ -6,7 +6,7 @@ const http = require('http'),
 
 const config = require('../config');
 
-const myIo = require('./sockets/test_io'),
+const myIo = require('./sockets/test_minimal'),
       routes = require('./routes/routes');
 
 const app = express(),
