@@ -13,7 +13,14 @@ const app = express(),
       server = http.Server(app),
       io = socket(server, {
         cors: {
-          origin: ["https://jocular-selkie-2cc178.netlify.app", "https://netlify.app", "http://localhost:3000", "http://localhost:1000"],
+          origin: [
+            "https://jocular-selkie-2cc178.netlify.app", 
+            "https://netlify.app", 
+            "https://vercel.app",
+            "https://*.vercel.app",
+            "http://localhost:3000", 
+            "http://localhost:1000"
+          ],
           methods: ["GET", "POST"],
           credentials: true
         }
