@@ -2,7 +2,7 @@ const http = require('http'),
       path = require('path'),
       express = require('express'),
       handlebars = require('express-handlebars'),
-      cors = require('cors');
+      socket = require('socket.io');
 
 const config = require('../config');
 
@@ -10,24 +10,25 @@ const myIo = require('./sockets/io'),
       routes = require('./routes/routes');
 
 const app = express(),
-      server = http.Server(app);
-
-// Enable CORS for all routes
-app.use(cors({
-  origin: ["https://jocular-selkie-2cc178.netlify.app", "http://localhost:3000"],
-  credentials: true
-}));
-
-// Initialize Socket.IO with CORS in the io.js file
-const io = myIo(server);
+      server = http.Server(app),
+      io = socket(server, {
+        cors: {
+          origin: ["https://jocular-selkie-2cc178.netlify.app", "http://localhost:3000"],
+          methods: ["GET", "POST"],
+          credentials: true
+        }
+      });
 
 const PORT = process.env.PORT || config.port;
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
 
+// Make games global so routes can access it
 global.games = {};
+
+myIo(io);
 
 console.log(`Server starting on port ${PORT}`);
 
