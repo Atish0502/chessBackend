@@ -59,8 +59,10 @@ module.exports = io => {
                 game.started = true;
                 console.log(`🚀 Game ${gameCode} started!`);
                 
+                // Send gameStarted to BOTH players
                 io.to(gameCode).emit('gameStarted', {
-                    color: playerColor
+                    white: game.white,
+                    black: game.black
                 });
                 
             } else {
