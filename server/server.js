@@ -2,7 +2,7 @@ const http = require('http'),
       path = require('path'),
       express = require('express'),
       handlebars = require('express-handlebars'),
-      socket = require('socket.io');
+      { Server } = require('socket.io');
 
 const config = require('../config');
 
@@ -11,7 +11,7 @@ const myIo = require('./sockets/test_minimal'),
 
 const app = express(),
       server = http.Server(app),
-      io = socket(server, {
+      io = new Server(server, {
         cors: {
           origin: [
             "https://jocular-selkie-2cc178.netlify.app", 
