@@ -19,6 +19,7 @@
   "homepage": "https://github.com/Atish0502/chessBackend#readme",
   "description": "",
   "dependencies": {
+    "chess.js": "^1.4.0",
     "express": "^5.1.0",
     "express-handlebars": "^8.0.3",
     "socket.io": "^4.8.1"

@@ -15,9 +15,8 @@ const app = express(),
         cors: {
           origin: [
             "https://jocular-selkie-2cc178.netlify.app", 
+            "https://*.netlify.app",
             "https://netlify.app", 
-            "https://vercel.app",
-            "https://*.vercel.app",
             "http://localhost:3000", 
             "http://localhost:1000"
           ],

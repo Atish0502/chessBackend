@@ -1,6 +1,7 @@
 // Add timer state to each game
 // Add chat state to each game (in-memory, max 7 messages per player)
 const INITIAL_TIME = 600; // 10 minutes in seconds
+const Chess = require('chess.js'); // Add server-side chess validation
 
 // Store intervals for each game
 const timerIntervals = {};
@@ -21,28 +22,60 @@ module.exports = io => {
             if (!global.games[currentCode]) return;
             if (!global.games[currentCode].running) return; // Only allow moves when game is running
             
+            const game = global.games[currentCode];
+            
+            // Server-side move validation using chess.js
+            if (!game.chessInstance) {
+                game.chessInstance = new Chess(); // Initialize chess instance if not exists
+            }
+            
             console.log(`Move received in game ${currentCode}:`, data);
             
-            // Switch turn immediately when a move is received
-            if (data && data.from && data.to) {
-                if (global.games[currentCode].turn === 'w') {
-                    global.games[currentCode].turn = 'b';
-                } else {
-                    global.games[currentCode].turn = 'w';
-                }
+            // Validate move server-side
+            const move = game.chessInstance.move({
+                from: data.from,
+                to: data.to,
+                promotion: data.promotion || 'q'
+            });
+            
+            if (!move) {
+                console.log('Invalid move rejected:', data);
+                socket.emit('invalidMove', { move: data, reason: 'Illegal move' });
+                return;
             }
-            // Emit the updated timers and turn
+            
+            // Move is valid, update turn
+            if (game.turn === 'w') {
+                game.turn = 'b';
+            } else {
+                game.turn = 'w';
+            }
+            
+            // Check for game end conditions
+            if (game.chessInstance.in_checkmate()) {
+                game.running = false;
+                const winner = game.chessInstance.turn() === 'w' ? 'black' : 'white';
+                io.to(currentCode).emit('gameOver', { winner, reason: 'checkmate' });
+            } else if (game.chessInstance.in_draw()) {
+                game.running = false;
+                io.to(currentCode).emit('gameOver', { winner: 'draw', reason: 'draw' });
+            }
+            
+            // Emit the validated move
             io.to(currentCode).emit('newMove', {
                 move: data,
-                whiteTime: global.games[currentCode].whiteTime,
-                blackTime: global.games[currentCode].blackTime,
-                turn: global.games[currentCode].turn
+                whiteTime: game.whiteTime,
+                blackTime: game.blackTime,
+                turn: game.turn,
+                fen: game.chessInstance.fen(),
+                pgn: game.chessInstance.pgn()
             });
+            
             // Immediately emit a timerUpdate so the UI updates right after the move
             io.to(currentCode).emit('timerUpdate', {
-                whiteTime: global.games[currentCode].whiteTime,
-                blackTime: global.games[currentCode].blackTime,
-                turn: global.games[currentCode].turn
+                whiteTime: game.whiteTime,
+                blackTime: game.blackTime,
+                turn: game.turn
             });
         });
 
@@ -51,31 +84,43 @@ module.exports = io => {
             socket.join(currentCode);
             
             if (!global.games[currentCode]) {
-                // First player creates the game
+                // First player creates the game and gets white
                 global.games[currentCode] = {
                     whiteTime: INITIAL_TIME,
                     blackTime: INITIAL_TIME,
                     turn: 'w',
                     running: false, // Don't start until 2 players
                     chat: [],
-                    players: 1 // Track number of players
+                    players: 1,
+                    whitePlayer: socket.id, // Track who is white
+                    blackPlayer: null,
+                    chessInstance: new Chess() // Server-side game state
                 };
-                console.log(`Game ${currentCode} created, waiting for second player`);
+                playerColor = 'white';
+                console.log(`Game ${currentCode} created, player ${socket.id} assigned white`);
+                socket.emit('colorAssigned', { color: 'white', waiting: true });
                 return;
             }
             
-            // Second player joins
+            // Second player joins and gets black
             if (global.games[currentCode].players < 2) {
                 global.games[currentCode].players = 2;
+                global.games[currentCode].blackPlayer = socket.id;
                 global.games[currentCode].running = true;
+                playerColor = 'black';
                 
                 console.log(`Game ${currentCode} started with 2 players`);
+                
+                // Notify both players of color assignments and game start
+                io.to(global.games[currentCode].whitePlayer).emit('colorAssigned', { color: 'white', waiting: false });
+                io.to(global.games[currentCode].blackPlayer).emit('colorAssigned', { color: 'black', waiting: false });
                 
                 // Start the game for both players
                 io.to(currentCode).emit('startGame', {
                     whiteTime: global.games[currentCode].whiteTime,
                     blackTime: global.games[currentCode].blackTime,
-                    chat: global.games[currentCode].chat
+                    chat: global.games[currentCode].chat,
+                    fen: global.games[currentCode].chessInstance.fen()
                 });
                 
                 // Start timer interval for this game
