@@ -30,10 +30,42 @@ const PORT = process.env.PORT || config.port;
 server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
   
-  // Initialize socket handler AFTER server starts
-  console.log('Initializing socket handler...');
-  myIo(io);
-  console.log('Socket handler initialized');
+  // INLINE SOCKET HANDLER - NO MODULE LOADING ISSUES
+  console.log('🚀🚀🚀 INLINE SOCKET HANDLER STARTING');
+  
+  io.on('connection', (socket) => {
+    console.log(`🔌🔌🔌 NEW CONNECTION: ${socket.id}`);
+    
+    // Log ALL events
+    socket.onAny((eventName, ...args) => {
+      console.log(`📨📨📨 EVENT RECEIVED: ${eventName}`, args);
+    });
+    
+    socket.on('joinGame', (data) => {
+      console.log(`🎮🎮🎮 JOIN GAME EVENT: ${socket.id}`, data);
+      
+      socket.emit('gameJoined', { 
+        color: 'white',
+        waiting: false,
+        test: 'INLINE_SUCCESS'
+      });
+      console.log(`✅✅✅ SENT gameJoined to ${socket.id}`);
+      
+      setTimeout(() => {
+        socket.emit('gameStarted', {
+          message: 'Inline test game started!',
+          test: 'INLINE_SUCCESS'
+        });
+        console.log(`🚀🚀🚀 SENT gameStarted to ${socket.id}`);
+      }, 1000);
+    });
+    
+    socket.on('disconnect', () => {
+      console.log(`❌❌❌ DISCONNECTION: ${socket.id}`);
+    });
+  });
+  
+  console.log('🔧🔧🔧 INLINE SOCKET HANDLER COMPLETE');
 });
 
 // Initialize professional game state management
