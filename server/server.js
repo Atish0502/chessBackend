@@ -6,7 +6,7 @@ const http = require('http'),
 
 const config = require('../config');
 
-const myIo = require('./sockets/test_minimal'),
+const productionIo = require('./sockets/production_io'),
       routes = require('./routes/routes');
 
 const app = express(),
@@ -30,41 +30,13 @@ const app = express(),
 const PORT = process.env.PORT || config.port;
 
 server.listen(PORT, () => {
-  console.log(`🚀 Server listening on port ${PORT}`);
+  console.log(`🚀 Production Chess Server starting on port ${PORT}`);
   
-  // SAFE SOCKET HANDLER - NO ONAVY
-  io.on('connection', (socket) => {
-    console.log(`🔌 NEW CONNECTION: ${socket.id}`);
-    
-    // Just handle specific events safely
-    socket.on('joinGame', (data) => {
-      console.log(`📨 joinGame EVENT:`, data);
-      
-      try {
-        socket.emit('echo', {
-          originalEvent: 'joinGame',
-          originalData: data,
-          timestamp: new Date().toISOString(),
-          test: 'SAFE_SUCCESS'
-        });
-        console.log(`📤 ECHOED joinGame`);
-      } catch (error) {
-        console.log(`❌ ERROR:`, error);
-      }
-    });
-    
-    socket.on('disconnect', () => {
-      console.log(`❌ DISCONNECT: ${socket.id}`);
-    });
-    
-    console.log(`✅ Handler ready for ${socket.id}`);
-  });
+  // Initialize production socket handler
+  productionIo(io);
   
-  console.log(`✅ Socket server ready`);
+  console.log(`✅ Production server ready on port ${PORT}`);
 });
-
-// Initialize professional game state management
-global.games = new Map();
 
 console.log(`Server starting on port ${PORT}`);
 

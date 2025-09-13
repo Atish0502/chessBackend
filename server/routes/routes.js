@@ -9,15 +9,19 @@ module.exports = app => {
             color: 'white'
         });
     });
+    
     app.get('/black', (req, res) => {
-        if (!games[req.query.code]) {
-            return res.redirect('/?error=invalidCode');
+        const gameCode = req.query.code;
+        if (!gameCode) {
+            return res.redirect('/?error=missingCode');
         }
 
         res.render('game', {
-            color: 'black'
+            color: 'black',
+            gameCode: gameCode
         });
     });
+    
     app.get('/ai', (req, res) => {
         res.render('ai');
     });
